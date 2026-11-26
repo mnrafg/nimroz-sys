@@ -1,0 +1,10 @@
+{
+  "name": "aogc-bicms-adms",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BICMS ADMS runtime launcher (Python FastAPI, see python/). This package.json exists at the SERVICE ROOT so the platform's mini-service discovery (`bun run dev` per mini-services/<name>/) can start the Python runtime; the runtime itself is plain Python under python/.",
+  "scripts": {
+    "dev": "bash dev-guard.sh",
+    "start": "bash python/run.sh"
+  }
+}

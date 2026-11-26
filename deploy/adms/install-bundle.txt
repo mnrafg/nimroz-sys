@@ -1,0 +1,64 @@
+aogc-bicms-adms install bundle -- expected layout and checksum discipline
+=========================================================================
+
+The release id IS the checksum of the runtime file. The bundle directory is
+named after it, which makes every installed release auditable:
+
+  bundle/
+    bicms_adms.py          the single-file runtime (this file's sha256 names the release)
+    requirements.lock      pinned dependency closure (fastapi, uvicorn, transitives)
+    README.md              runtime documentation
+    run.sh                 convenience launcher (dev/sandbox; not used by systemd)
+    aogc-bicms-adms.service  systemd unit template (installed separately)
+
+Build the release id and directory:
+
+  sha256sum bicms_adms.py                 # first field = <checksum> = release id
+  RELEASE=<checksum>
+  mkdir -p /opt/aogc-bicms-adms/releases/$RELEASE
+  cp bicms_adms.py requirements.lock README.md run.sh \
+     /opt/aogc-bicms-adms/releases/$RELEASE/
+  chown -R root:root /opt/aogc-bicms-adms/releases/$RELEASE
+  ln -sfn /opt/aogc-bicms-adms/releases/$RELEASE /opt/aogc-bicms-adms/current
+
+Virtualenv (create once, reuse across releases; refresh when requirements.lock
+changes):
+
+  python3 -m venv /opt/aogc-bicms-adms/venv
+  /opt/aogc-bicms-adms/venv/bin/pip install -r /opt/aogc-bicms-adms/current/requirements.lock
+
+Service account and paths:
+
+  useradd --system --home-dir /var/lib/aogc-bicms-adms --shell /usr/sbin/nologin bicms-adms
+  mkdir -p /etc/aogc-bicms-adms /var/lib/aogc-bicms-adms
+  chown bicms-adms:bicms-adms /var/lib/aogc-bicms-adms
+  chown root:bicms-adms  /etc/aogc-bicms-adms && chmod 750 /etc/aogc-bicms-adms
+
+TLS (optional but recommended): place a combined cert+key PEM at
+/etc/aogc-bicms-adms/tls.pem (mode 0600, owner bicms-adms) BEFORE first start.
+When this file is absent, the runtime generates a self-signed certificate
+(nginx/openssl CLI required) into /var/lib/aogc-bicms-adms/tls.pem on first
+start and uses that instead.
+
+Unit installation and start:
+
+  cp aogc-bicms-adms.service /etc/systemd/system/
+  systemctl daemon-reload
+  systemctl enable --now aogc-bicms-adms
+
+Post-install hardening checklist (do not skip):
+
+  1. Read the bearer token printed/generated in
+     /var/lib/aogc-bicms-adms/bicms_adms.json (mode 0600) and store it ONLY in
+     the application's encrypted ADMS API connection profile. Never commit it.
+  2. Edit the config: set "allowAnyNetwork": false and add one entry per
+     physical terminal under "serials" (optionally with allowedNetworks CIDRs).
+     The serial values come from the devices themselves (COMM/ADMS menu or
+     device label). Any serials quoted in documentation, e.g. JYM6244400083,
+     are EXAMPLES of the original deployment -- not defaults.
+  3. systemctl restart aogc-bicms-adms
+  4. Verify: curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8082/
+
+Never bind or proxy port 8080 on this host: the legacy ADMS service and any
+Frappe service are separate deployments. The BICMS runtime uses 8081 (device
+PUSH), 8082 (loopback API) and 8443 (TLS API) only.

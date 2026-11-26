@@ -1,0 +1,10 @@
+{
+  "name": "aogc-bicms-adms",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BICMS ADMS runtime (Python FastAPI). The package.json exists only so `bun run dev` style tooling can start the Python service; the runtime itself is plain Python.",
+  "scripts": {
+    "dev": "bash run.sh",
+    "start": "python3 bicms_adms.py"
+  }
+}

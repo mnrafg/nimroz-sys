@@ -1,0 +1,117 @@
+# See https://help.github.com/articles/ignoring-files/
+
+# Dependencies
+node_modules/
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Testing
+/coverage/
+test
+
+# Next.js (including nested build directories)
+.next/
+out/
+
+# Production
+/build/
+
+# Miscellaneous
+.DS_Store
+*.pem
+
+# Debug and log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+*.log
+dev.log
+dev.out.log
+server.log
+
+# Environment variables and biometric master key
+.env*
+!.env.example
+
+# Private runtime data and local diagnostic captures
+/db/
+/tool-results/
+/.local/
+*.pid
+
+# ADMS runtime configuration, device records, and SQLite databases
+/mini-services/adms-server/python/tmp-data/
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite3-shm
+*.sqlite3-wal
+
+# Vercel
+.vercel/
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Local development and AI tools
+local-*
+.claude
+.z-ai-config
+prompt
+
+# Skills directory
+/skills/
+
+# Local MySQL binaries, database files and credentials
+/.local/mysql/
+
+# Local database backups
+/.backups/
+
+# ADMS deployment and private configuration
+/.local/adms/deployment/
+/.local/adms/private/
+
+# Generated ADMS binaries and artifacts
+/.local/adms/artifacts/
+/.local/adms/artifacts-python/
+
+# Python generated files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Python virtual environments
+.venv/
+
+# ADMS local connection settings and credentials
+/.local/adms/connections/
+/.local/adms/database-url-repair.json
+
+# ADMS runtime records and diagnostics
+/.local/adms/device-removals/
+/.local/adms/diagnostics/
+/.local/adms/direct-probe-known-hosts
+/.local/adms/direct-adms-diagnosis-*.md
+/.local/adms/provider-network-check-*.txt
+
+# ADMS temporary production testing
+/.local/adms/production-check-*/
+/.local/adms/production-check-path.txt
+
+# ADMS local Python dependencies
+/.local/adms/python-dev/

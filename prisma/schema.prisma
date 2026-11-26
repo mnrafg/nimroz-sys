@@ -1,0 +1,599 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// MySQL is the application database. Configure DATABASE_URL in .env.
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// Users / Roles
+// ============================================================
+
+model Role {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique // ADMIN | OFFICER | SUPERVISOR
+  nameDari    String
+  description String?
+  users       User[]
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  name         String
+  email        String   @unique
+  passwordHash String
+  roleId       Int
+  checkpointId Int?
+  isActive     Boolean  @default(true)
+  // Set whenever the password is set/changed; JWTs issued BEFORE this
+  // instant are rejected (session revocation after credential change).
+  passwordChangedAt DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  role       Role              @relation(fields: [roleId], references: [id])
+  checkpoint BorderCheckpoint? @relation(fields: [checkpointId], references: [id])
+
+  entriesCreated      ImportEntry[]     @relation("EntryCreatedBy")
+  entriesApproved     ImportEntry[]     @relation("EntryApprovedBy")
+  entriesRejected     ImportEntry[]     @relation("EntryRejectedBy")
+  limitsCreated       ImportLimit[]     @relation("LimitCreatedBy")
+  exceptionsRequested ImportEntryItem[] @relation("ExceptionRequestedBy")
+  exceptionsApproved  ImportEntryItem[] @relation("ExceptionApprovedBy")
+  exceptionsRejected  ImportEntryItem[] @relation("ExceptionRejectedBy")
+  approvalActions     ApprovalAction[]
+  auditLogs           AuditLog[]
+
+  // Terminal (direct LAN / ADMS) biometric stack back-relations
+  terminalDevicesCreated TerminalDevice[]     @relation("TerminalDeviceCreatedBy")
+  terminalEnrollmentOwner TerminalEnrollment[] @relation("TerminalEnrollmentOwner")
+  terminalLeaseOwner      TerminalLease[]      @relation("TerminalLeaseOwner")
+
+  @@index([roleId])
+  @@index([checkpointId])
+}
+
+// ============================================================
+// Master data
+// ============================================================
+
+model Importer {
+  id                     Int       @id @default(autoincrement())
+  importerCode           String    @unique
+  name                   String
+  companyName            String?
+  licenseNumber          String?
+  phone                  String?
+  address                String?
+  status                 String    @default("ACTIVE") // ACTIVE | INACTIVE
+  remarks                String?
+  // Biometric enhancement (additive fields — existing data untouched)
+  fatherName             String? // نام پدر
+  tazkiraNumber          String? // نمبر تذکره
+  // Normalized search keys (digits unified, separators stripped) — used by
+  // duplicate detection so ۱۲۳۴۵ and 12345 match. Original documents above
+  // are always preserved exactly as entered.
+  tazkiraNormalized      String?
+  licenseNormalized      String?
+  province               String? // ولایت ا اقامت
+  photoData              String? @db.MediumText // base64 JPEG (client-downscaled); never fingerprint data
+  idCardNumber           String?   @unique // شماره کارت شناسایی صادره AOGC
+  biometricStatus        String    @default("NOT_ENROLLED") // NOT_ENROLLED | ENROLLED | REVOKED
+  biometricEnrolledAt    DateTime?
+  // Group organization (border-import regulation) — additive, optional for
+  // commercial importers; representative is a FK reference, personal data is
+  // NEVER duplicated into the group record.
+  importerType           String    @default("COMMERCIAL") // BORDER_WORKER | COMMERCIAL
+  groupId                Int?
+  subgroupId             Int?
+  membershipStatus       String    @default("ACTIVE") // ACTIVE | INACTIVE (group membership)
+  // Registration-port ownership of the CENTRAL identity: the port where
+  // this importer was registered (officer registrations are forced to the
+  // officer's assigned port; admin registrations may be central/null).
+  // NULL = centrally registered — visible to every port (biometric
+  // identification and duplicate checks keep working nationwide).
+  registeredCheckpointId Int?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  limits               ImportLimit[]
+  entries              ImportEntry[]
+  // Terminal (direct LAN / ADMS) biometric stack back-relations
+  terminalIdentities   TerminalIdentity[]    @relation("TerminalIdentities")
+  terminalEnrollments  TerminalEnrollment[]  @relation("TerminalEnrollments")
+  group                ImporterGroup?         @relation("GroupMembership", fields: [groupId], references: [id])
+  subgroup             ImporterSubgroup?      @relation("SubgroupMembership", fields: [subgroupId], references: [id])
+  representedGroups    ImporterGroup[]        @relation("GroupRepresentative")
+  registeredCheckpoint BorderCheckpoint?      @relation("RegisteredImporters", fields: [registeredCheckpointId], references: [id])
+
+  @@index([status])
+  @@index([name])
+  @@index([biometricStatus])
+  @@index([importerType])
+  @@index([groupId])
+  @@index([subgroupId])
+  @@index([registeredCheckpointId])
+  @@index([tazkiraNormalized])
+  @@index([licenseNormalized])
+}
+
+// ============================================================
+// Master data (items, units, checkpoints)
+// ============================================================
+
+model ItemCategory {
+  id                Int           @id @default(autoincrement())
+  name              String        @unique
+  status            String        @default("ACTIVE")
+  items             Item[]
+  limitRestrictions ImportLimit[] @relation("LimitRestrictCategory")
+}
+
+model Uom {
+  id     Int    @id @default(autoincrement())
+  code   String @unique
+  name   String
+  symbol String
+  status String @default("ACTIVE")
+
+  items           Item[]            @relation("BaseUom")
+  limitUoms       ImportLimit[]
+  entryItems      ImportEntryItem[]
+  conversionsFrom UomConversion[]   @relation("FromUom")
+  conversionsTo   UomConversion[]   @relation("ToUom")
+}
+
+model UomConversion {
+  id               Int   @id @default(autoincrement())
+  itemId           Int
+  fromUomId        Int
+  toUomId          Int
+  conversionFactor Float // multiply quantity in fromUom to get quantity in toUom
+
+  item    Item @relation(fields: [itemId], references: [id])
+  fromUom Uom  @relation("FromUom", fields: [fromUomId], references: [id])
+  toUom   Uom  @relation("ToUom", fields: [toUomId], references: [id])
+
+  @@unique([itemId, fromUomId, toUomId])
+  @@index([itemId])
+}
+
+model Item {
+  id          Int      @id @default(autoincrement())
+  itemCode    String   @unique
+  itemName    String
+  categoryId  Int?
+  baseUomId   Int
+  status      String   @default("ACTIVE") // ACTIVE | INACTIVE
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  category       ItemCategory?     @relation(fields: [categoryId], references: [id])
+  baseUom        Uom               @relation("BaseUom", fields: [baseUomId], references: [id])
+  conversions    UomConversion[]
+  restrictLimits ImportLimit[]     @relation("LimitRestrictItem")
+  entryItems     ImportEntryItem[]
+
+  @@index([status])
+  @@index([itemName])
+}
+
+model BorderCheckpoint {
+  id       Int    @id @default(autoincrement())
+  code     String @unique
+  name     String
+  province String
+  status   String @default("ACTIVE")
+
+  users               User[]
+  limits              ImportLimit[]
+  entries             ImportEntry[]
+  registeredImporters Importer[]        @relation("RegisteredImporters")
+  terminalDevices     TerminalDevice[]  @relation("TerminalDevices")
+}
+
+// ============================================================
+// Importer groups (border-import regulation)
+// Group → optional Subgroup → registered Importer/Border Worker.
+// The official representative is an EXISTING registered importer
+// referenced by FK — no separate person database, no duplicated
+// personal data. Groups do NOT create or increase individual quotas.
+// ============================================================
+
+model ImporterGroup {
+  id               Int      @id @default(autoincrement())
+  code             String   @unique // group code
+  name             String
+  representativeId Int? // official representative → existing Importer
+  description      String?
+  mandateDoc       String? // authorization/mandate document reference (where available)
+  undertakingDoc   String? // representative's signed undertaking reference (where available)
+  status           String   @default("ACTIVE") // ACTIVE | INACTIVE
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  representative Importer?          @relation("GroupRepresentative", fields: [representativeId], references: [id])
+  members        Importer[]         @relation("GroupMembership")
+  subgroups      ImporterSubgroup[]
+  quotas         ImportLimit[]
+
+  @@index([status])
+  @@index([representativeId])
+  @@index([name])
+}
+
+model ImporterSubgroup {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique
+  name      String
+  groupId   Int
+  status    String   @default("ACTIVE") // ACTIVE | INACTIVE
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  group   ImporterGroup @relation(fields: [groupId], references: [id])
+  members Importer[]    @relation("SubgroupMembership")
+
+  @@index([groupId])
+  @@index([name])
+}
+
+// ============================================================
+// Import limits (quota configuration)
+// ============================================================
+
+model ImportLimit {
+  id                 Int       @id @default(autoincrement())
+  // Quota OWNER — an individual importer OR a group (one shared balance).
+  ownerType          String    @default("INDIVIDUAL") // INDIVIDUAL | GROUP
+  importerId         Int? // owner when INDIVIDUAL
+  groupId            Int? // owner when GROUP
+  checkpointId       Int
+  // NO item in the quota identity: the authorized quantity is a shared
+  // balance for ALL eligible goods (converted to the quota UOM).
+  allowedQuantity    Float
+  uomId              Int // the shared balance unit (e.g. Litre)
+  periodType         String // DAILY | WEEKLY | MONTHLY | TOTAL
+  effectiveFrom      DateTime
+  effectiveTo        DateTime?
+  isActive           Boolean   @default(true)
+  // OPTIONAL eligibility restriction: when set, ONLY this item (or every
+  // item of this category) may consume the quota. NULL = any active item
+  // whose UOM converts to the quota UOM.
+  restrictItemId     Int?
+  restrictCategoryId Int?
+  createdBy          Int?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  importer         Importer?         @relation(fields: [importerId], references: [id])
+  group            ImporterGroup?    @relation(fields: [groupId], references: [id])
+  checkpoint       BorderCheckpoint  @relation(fields: [checkpointId], references: [id])
+  restrictItem     Item?             @relation("LimitRestrictItem", fields: [restrictItemId], references: [id])
+  restrictCategory ItemCategory?     @relation("LimitRestrictCategory", fields: [restrictCategoryId], references: [id])
+  uom              Uom               @relation(fields: [uomId], references: [id])
+  creator          User?             @relation("LimitCreatedBy", fields: [createdBy], references: [id])
+  entryItems       ImportEntryItem[]
+  chargedEntries   ImportEntry[]     @relation("EntryAppliedLimit")
+
+  @@index([ownerType, importerId, checkpointId, isActive])
+  @@index([ownerType, groupId, checkpointId, isActive])
+  @@index([periodType])
+  @@index([effectiveFrom, effectiveTo])
+}
+
+// ============================================================
+// Import entries
+// ============================================================
+
+model ImportEntry {
+  id             Int       @id @default(autoincrement())
+  entryNumber    String    @unique
+  importerId     Int
+  checkpointId   Int
+  importDatetime DateTime // actual import date/time (Asia/Kabul business timezone)
+  vehicleNumber  String?
+  status         String    @default("DRAFT") // DRAFT | PENDING | APPROVED | REJECTED | REVERSED
+  remarks        String?
+  createdBy      Int?
+  approvedBy     Int?
+  approvedAt     DateTime?
+  rejectedBy     Int?
+  rejectedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // ---- QUOTA CHARGE SNAPSHOT (recorded at finalization; never recomputed
+  // from later master-data changes) ----
+  // The ONE quota charged by this transaction (individual takes precedence
+  // over group; a transaction never consumes both).
+  appliedLimitId       Int?
+  quotaSource          String? // INDIVIDUAL | GROUP
+  chargedGroupId       Int? // group resolved at finalization (membership snapshot)
+  quotaUomId           Int? // quota balance unit
+  quotaChargedQuantity Float? // total charged in quota UOM (all eligible rows)
+  quotaExcessQuantity  Float? // portion above the remaining balance
+  excessReason         String? // genuine reason when over-limit (mandatory)
+  chargedGroupName     String? // display name at charge time (history)
+
+  importer     Importer          @relation(fields: [importerId], references: [id])
+  checkpoint   BorderCheckpoint  @relation(fields: [checkpointId], references: [id])
+  creator      User?             @relation("EntryCreatedBy", fields: [createdBy], references: [id])
+  approver     User?             @relation("EntryApprovedBy", fields: [approvedBy], references: [id])
+  rejecter     User?             @relation("EntryRejectedBy", fields: [rejectedBy], references: [id])
+  appliedLimit ImportLimit?      @relation("EntryAppliedLimit", fields: [appliedLimitId], references: [id])
+  items        ImportEntryItem[]
+  actions      ApprovalAction[]
+
+  @@index([appliedLimitId, status, importDatetime])
+  @@index([status])
+  @@index([importDatetime])
+  @@index([importerId])
+  @@index([checkpointId])
+  @@index([importerId, checkpointId, status, importDatetime])
+}
+
+model ImportEntryItem {
+  id                     Int       @id @default(autoincrement())
+  importEntryId          Int
+  itemId                 Int
+  quantity               Float // as entered, in uomId
+  uomId                  Int
+  baseQuantity           Float // normalized into item base UOM
+  importLimitId          Int?
+  exceptionRequired      Boolean   @default(false)
+  exceptionStatus        String? // PENDING | APPROVED | REJECTED
+  exceptionReason        String?
+  exceptionRequestedBy   Int?
+  exceptionRequestedAt   DateTime?
+  exceptionApprovedBy    Int?
+  exceptionApprovedAt    DateTime?
+  exceptionRejectedBy    Int?
+  exceptionRejectedAt    DateTime?
+  approvedExcessQuantity Float?
+  remarks                String?
+  // Per-row quota charge snapshot (stable after later conversion changes):
+  // quantity charged to the entry's quota UOM and the factor applied.
+  quotaUomQuantity       Float? // this row's quantity in the quota UOM
+  quotaConversionFactor  Float? // row UOM → quota UOM factor (null = same unit)
+  createdAt              DateTime  @default(now())
+
+  importEntry        ImportEntry      @relation(fields: [importEntryId], references: [id], onDelete: Cascade)
+  item               Item             @relation(fields: [itemId], references: [id])
+  uom                Uom              @relation(fields: [uomId], references: [id])
+  importLimit        ImportLimit?     @relation(fields: [importLimitId], references: [id])
+  exceptionRequester User?            @relation("ExceptionRequestedBy", fields: [exceptionRequestedBy], references: [id])
+  exceptionApprover  User?            @relation("ExceptionApprovedBy", fields: [exceptionApprovedBy], references: [id])
+  exceptionRejecter  User?            @relation("ExceptionRejectedBy", fields: [exceptionRejectedBy], references: [id])
+  actions            ApprovalAction[]
+
+  @@index([importEntryId])
+  @@index([itemId])
+  @@index([importLimitId])
+  @@index([exceptionStatus])
+}
+
+model ApprovalAction {
+  id                Int      @id @default(autoincrement())
+  importEntryId     Int
+  importEntryItemId Int?
+  actionType        String // SUBMIT | APPROVE | REJECT | EXCEPTION_REQUEST | EXCEPTION_APPROVE | EXCEPTION_REJECT | REVERSE | CREATE
+  actionBy          Int
+  actionAt          DateTime @default(now())
+  remarks           String?
+
+  importEntry     ImportEntry      @relation(fields: [importEntryId], references: [id], onDelete: Cascade)
+  importEntryItem ImportEntryItem? @relation(fields: [importEntryItemId], references: [id], onDelete: Cascade)
+  actor           User             @relation(fields: [actionBy], references: [id])
+
+  @@index([importEntryId])
+  @@index([actionType])
+}
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int?
+  action     String
+  recordType String
+  recordId   Int?
+  oldValues  String? @db.LongText // JSON string
+  newValues  String? @db.LongText // JSON string
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([recordType, recordId])
+  @@index([createdAt])
+}
+
+// ============================================================
+// Automation infrastructure
+// ============================================================
+
+/**
+ * Durable, monotonic number sequences (importer numbers, group codes,
+ * card numbers, per-year entry numbers, …).
+ * Counters are seeded on first use ABOVE the highest value already issued
+ * (including deleted/canceled records), so numbers are never reused and
+ * concurrent transactions allocate distinct values.
+ */
+model SequenceCounter {
+  id        String   @id // e.g. "IMPORTER", "CARD", "ENTRY:1405", "SUBGROUP:3"
+  value     Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+/**
+ * Create-retry protection: a client-supplied key maps to the record created
+ * by the first successful request. Retries replay the SAME record instead
+ * of creating a duplicate (double-clicks, flaky networks).
+ */
+model IdempotencyRecord {
+  key        String   @id
+  entityType String
+  entityId   Int?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+}
+
+/**
+ * Administrator-configured automation parameters (numbering prefixes,
+ * alert thresholds, default working context …). Values fall back to
+ * built-in defaults; only authorized administrators may change them.
+ */
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+  updatedBy Int?
+}
+
+// ============================================================
+// Terminal biometric stack (reproduced from reference branch
+// "biometric-setup", commit 2a9c2c2) — the ONLY biometric identity
+// system in this application.
+//
+// Identity = DEVICE SERIAL + TERMINAL USER ID (never a generated
+// website code). User ID 12 on one terminal is a different person
+// from user ID 12 on another terminal. Two transports only:
+//   LAN         — the app backend opens TCP (default 4370) directly
+//                 to the terminal; all protocol work is server-side,
+//                 never browser TCP, no native SDK gateway.
+//   ADMS_SERVER — the terminal pushes records to a separate ADMS
+//                 service; the app READS device status and fresh
+//                 events from that service's authenticated API.
+// This stack never writes user data to the terminal, never deletes
+// templates, never changes the device clock, never controls doors,
+// never resets the device, and never stores fingerprints/photos.
+// ============================================================
+
+/// A physical biometric terminal registered by its stable serial.
+model TerminalDevice {
+  id                    Int              @id @default(autoincrement())
+  serial                String           @unique // physical identity (immutable)
+  name                  String
+  // LAN | ADMS_SERVER (legacy RELAY transports keep separate storage)
+  transport             String           @default("LAN")
+  // LAN-only: reachable address of the terminal on the backend's network
+  host                  String?
+  port                  Int?             // LAN TCP port, default 4370
+  checkpointId          Int
+  checkpoint            BorderCheckpoint @relation("TerminalDevices", fields: [checkpointId], references: [id])
+  // legacy signed transports only (kept for compatibility, unused by LAN/ADMS)
+  credentialSalt        String?
+  // per-device communication key — AES-256-GCM at rest, never to browser
+  commKeyEnc            String?
+  commKeySet            Boolean  @default(false)
+  // Optional network policy for device-facing receivers: null = serial
+  // allowlist only; CSV of CIDRs restricts allowed source networks.
+  allowedNetworks       String?
+  isEnabled             Boolean          @default(true) // application-level ONLY
+  timezoneOffsetMinutes Int              @default(270) // Kabul = UTC+04:30
+  lastSeenAt            DateTime?
+  model                 String?
+  createdById           Int?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  creator     User?                @relation("TerminalDeviceCreatedBy", fields: [createdById], references: [id])
+  identities  TerminalIdentity[]   @relation("TerminalDeviceIdentities")
+  enrollments TerminalEnrollment[] @relation("TerminalDeviceEnrollments")
+  leases      TerminalLease[]      @relation("TerminalDeviceLeases")
+
+  @@index([checkpointId])
+  @@index([isEnabled])
+}
+
+/// DEVICE SERIAL + TERMINAL USER ID <-> importer mapping.
+/// Switching a terminal between LAN and ADMS keeps every mapping
+/// because the serial never changes.
+model TerminalIdentity {
+  id             Int       @id @default(autoincrement())
+  deviceKey      String
+  device         TerminalDevice @relation("TerminalDeviceIdentities", fields: [deviceKey], references: [serial])
+  terminalUserId String // numeric user id stored ON the terminal
+  importerId     Int
+  importer       Importer  @relation("TerminalIdentities", fields: [importerId], references: [id])
+  // last confirmed method: FINGERPRINT | FACE | PALM | MULTIPLE
+  method         String?
+  enrolledAt     DateTime  @default(now())
+  revokedAt      DateTime?
+
+  @@unique([deviceKey, terminalUserId])
+  @@unique([deviceKey, importerId])
+  @@index([importerId])
+}
+
+/// "Enrollment" = confirming an identity that was enrolled ON the
+/// terminal itself (never remote template capture). Short-lived,
+/// single-owner request consumed by one fresh matching scan.
+model TerminalEnrollment {
+  id             String    @id @default(uuid())
+  deviceKey      String
+  device         TerminalDevice @relation("TerminalDeviceEnrollments", fields: [deviceKey], references: [serial])
+  terminalUserId String
+  importerId     Int
+  importer       Importer  @relation("TerminalEnrollments", fields: [importerId], references: [id])
+  ownerId        Int
+  owner          User      @relation("TerminalEnrollmentOwner", fields: [ownerId], references: [id])
+  // PENDING | COMPLETED | CANCELED | EXPIRED
+  status         String    @default("PENDING")
+  createdAt      DateTime  @default(now())
+  expiresAt      DateTime
+  completedAt    DateTime?
+
+  @@index([deviceKey, terminalUserId, status])
+  @@index([ownerId, status])
+}
+
+/// One verified biometric event from a terminal. `id` (int) is the
+/// durable SSE cursor (SQLite rowid); `scanId` is the stable UUID.
+/// Single-use: `usedAt` set exactly once when dispatched/consumed.
+model TerminalScan {
+  id             Int       @id @default(autoincrement()) // durable cursor
+  scanId         String    @unique @default(uuid())
+  eventKey       String    @unique // serial:user:punch:verify:deviceTime (replay-safe)
+  deviceKey      String
+  terminalUserId String
+  verifyMode     Int
+  // FINGERPRINT | FACE | PALM (cards/passwords/unknown NEVER stored)
+  method         String
+  deviceTime     DateTime // device-local timestamp interpreted with offset
+  receivedAt     DateTime  @default(now())
+  usedAt         DateTime?
+  importerId     Int? // resolved mapping at delivery time (null = unmapped)
+
+  @@index([deviceKey, receivedAt])
+  @@index([deviceKey, id])
+  @@index([usedAt])
+}
+
+/// Exclusive scan lease per terminal — exactly one workstation may
+/// consume scans. Abandoned leases simply expire (~25 s).
+model TerminalLease {
+  id        Int      @id @default(autoincrement())
+  deviceKey String   @unique
+  device    TerminalDevice @relation("TerminalDeviceLeases", fields: [deviceKey], references: [serial])
+  sessionId String
+  ownerId   Int
+  owner     User     @relation("TerminalLeaseOwner", fields: [ownerId], references: [id])
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+/// Replay/once-delivery receipts (legacy signed ingestion + setup plans).
+model TerminalReceipt {
+  id        String   // receipt/replay identifier
+  deviceKey String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@id([id, deviceKey])
+  @@index([expiresAt])
+}

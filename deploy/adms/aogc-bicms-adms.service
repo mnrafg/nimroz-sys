@@ -1,0 +1,47 @@
+# aogc-bicms-adms systemd unit (template)
+#
+# Install:  cp aogc-bicms-adms.service /etc/systemd/system/
+#           systemctl daemon-reload && systemctl enable --now aogc-bicms-adms
+#
+# Layout expectations (see deploy/adms/README.md and install-bundle.txt):
+#   /opt/aogc-bicms-adms/releases/<checksum>/bicms_adms.py   release payload
+#   /opt/aogc-bicms-adms/current -> releases/<checksum>      current symlink
+#   /opt/aogc-bicms-adms/venv/                               venv from requirements.lock
+#   /etc/aogc-bicms-adms/tls.pem                             optional TLS cert (0600)
+#   /var/lib/aogc-bicms-adms/                                StateDirectory (writable)
+
+[Unit]
+Description=AOGC BICMS ADMS (ZKTeco PUSH receiver + private read-only API)
+Documentation=file:/opt/aogc-bicms-adms/current/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bicms-adms
+Group=bicms-adms
+UMask=0027
+WorkingDirectory=/opt/aogc-bicms-adms/current
+ExecStart=/opt/aogc-bicms-adms/venv/bin/python bicms_adms.py
+Environment=BICMS_ADMS_DATA_DIR=/var/lib/aogc-bicms-adms
+
+# Graceful shutdown: the runtime drains all three listeners on SIGTERM.
+KillSignal=SIGTERM
+TimeoutStopSec=15
+Restart=on-failure
+RestartSec=3
+
+# Hardening. /var/lib/aogc-bicms-adms is the only writable path; the runtime
+# stores config JSON, SQLite and the fallback TLS certificate there.
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/aogc-bicms-adms
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+LimitNOFILE=8192
+
+[Install]
+WantedBy=multi-user.target

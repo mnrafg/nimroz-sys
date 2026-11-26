@@ -1,0 +1,22 @@
+# aogc-bicms-adms -- pinned dependency closure (Python 3.10+)
+# Install with:  python3 -m pip install --no-deps -r requirements.lock
+# (or plain `pip install -r requirements.lock`; every transitive package is
+# pinned here, so the resolution is reproducible either way.)
+#
+# Direct dependencies: fastapi, uvicorn. Everything else is their pinned
+# transitive closure. sqlite3 is Python stdlib; TLS certificates are
+# generated with the `openssl` CLI subprocess -- no additional Python
+# packages are used.
+annotated-doc==0.0.4
+annotated-types==0.7.0
+anyio==4.13.0
+click==8.1.8
+fastapi==0.128.0
+h11==0.16.0
+idna==3.11
+pydantic==2.12.5
+pydantic-core==2.41.5
+starlette==0.50.0
+typing-extensions==4.15.0
+typing-inspection==0.4.2
+uvicorn==0.44.0

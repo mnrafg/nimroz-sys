@@ -1,0 +1,202 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+/* Preline UI (v5) — Tailwind v4 variants (hs-* state variants used by
+   Preline-pattern components across the app) */
+@import "preline/variants.css";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-vazirmatn), "Segoe UI", Tahoma, sans-serif;
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-gold: var(--gold);
+  /* Semantic status colors — success/warning/error only for meaningful states */
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: var(--radius-card);
+  --radius-2xl: calc(var(--radius-card) + 2px);
+}
+
+/*
+  AOGC Border Import Control System — restrained enterprise design system.
+  Primary deep teal #005963 (official AOGC identity), neutral slate surfaces.
+  Cards 12px radius, buttons/inputs 8px. Status colors are semantic only.
+*/
+:root {
+  --radius: 0.5rem;          /* buttons, inputs: 8px */
+  --radius-card: 0.75rem;    /* cards, dialogs: 12px */
+
+  --background: #f8fafc;           /* page background */
+  --foreground: #171717;           /* primary text */
+  --card: #ffffff;                 /* surface */
+  --card-foreground: #171717;
+  --popover: #ffffff;
+  --popover-foreground: #171717;
+
+  --primary: #005963;              /* deep teal */
+  --primary-foreground: #ffffff;
+  --secondary: #eef4f5;            /* faint teal wash */
+  --secondary-foreground: #005963;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;     /* secondary text */
+  --accent: #eef4f5;
+  --accent-foreground: #005963;
+
+  --destructive: #b91c1c;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #005963;
+
+  /* Semantic statuses (used sparingly, only for real states) */
+  --success: #15803d;
+  --success-soft: #f0fdf4;
+  --warning: #b45309;
+  --warning-soft: #fffbeb;
+  --danger: #b91c1c;
+  --danger-soft: #fef2f2;
+  --info: #475569;
+  --info-soft: #f8fafc;
+
+  --gold: #f5c400;                 /* logo gold — small highlights only */
+
+  --chart-1: #005963;
+  --chart-2: #15803d;
+  --chart-3: #f5c400;
+  --chart-4: #f18a00;
+  --chart-5: #64748b;
+
+  --sidebar: #043f47;              /* darker teal for contrast */
+  --sidebar-foreground: #d7e5e7;
+  --sidebar-primary: #f5c400;
+  --sidebar-primary-foreground: #043f47;
+  --sidebar-accent: #0a5159;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #0a5159;
+  --sidebar-ring: #f5c400;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    direction: rtl;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-vazirmatn), "Segoe UI", Tahoma, sans-serif;
+    text-align: start;
+  }
+  /* Persian digits look better with slightly larger line height in tables */
+  table {
+    line-height: 1.7;
+  }
+  /* Numeric inputs keep LTR digits while staying inside the RTL form flow */
+  input[type="number"],
+  input[type="tel"] {
+    direction: ltr;
+    text-align: left;
+    unicode-bidi: plaintext;
+  }
+  /* Dari/Pashto typography: comfortable tracking for Arabic-script text */
+  body,
+  button,
+  input,
+  select,
+  textarea {
+    letter-spacing: 0;
+  }
+}
+
+/* Slim, themed scrollbars for long lists */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Number inputs: hide spinners */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* Print styles — only the .print-area is printed */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible !important;
+  }
+  .print-area {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
+    background: white !important;
+    box-shadow: none !important;
+    padding: 12px !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+}
